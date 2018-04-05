@@ -57,5 +57,11 @@ typings/
 # dotenv environment variables file
 .env
 
-# next.js build output
-.next
+# temp file
+temp/html*
+temp/mp3*
+
+*key*
+serviceAccountKey.json
+env.sh
+

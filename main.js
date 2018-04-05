@@ -1,46 +1,49 @@
-require('es6-promise').polyfill();
-require('isomorphic-fetch');
+const host = 'http://www.uwants.com'
 
-(async() => {
+const TitleListKmd = require('./lib/kmd/TitleListKmd')
+const Detail = require('./lib/kmd/Detail')
+const mfDownloader = require('./lib/mediafireDownloader')
 
-    const {getHtml} = require('./lib/request')
-    const {getAllTitle, getDetail} = require('./lib/kmd')
-    const cheerio = require('cheerio')
-    const host = 'http://www.uwants.com'
+const processUwantsPage = async url => {
+    // process title list 
+    const tl = new TitleListKmd(url)
+    const titleInforList = await tl.getData() //[{id, title, url}]
 
-/**
- * @return
- *   [{id, title, url}]
- */
-    const getKmdTitleList = async () => {
-        const homeUrl = host + '/forumdisplay.php?fid=169'
-        const html = await getHtml(homeUrl)
-        return getAllTitle(html)
+    // process detail data
+    const detailList = titleInforList.map(item => new Detail(host + item.url, item))
+    await Promise.all(detailList.map(item => item.getData()))
+
+    // get kmd only detail data
+    const kmdDetailList = detailList.filter(item=> item.getIsKmd()&& !item.getIsExisted())
+
+    const mfInstanceList = kmdDetailList.map( kmdItem => new mfDownloader(kmdItem) )
+    
+    for(let i=0; i<mfInstanceList.length; i++){
+        await mfInstanceList[i].exec()
+    }
+}
+
+// started by 1
+const getPageByNum = num => {
+    const defaultUrl = '/forumdisplay.php?fid=169'
+
+    if(num <= 1) return defaultUrl
+
+    return `${defaultUrl}&page=${num}`
+}
+
+module.exports = async function(){
+
+    const MIN = 1
+    const MAX = 2
+
+    for(let i=MIN; i<MAX; i++){
+        console.log('[INFOR] Going to process UWants page ' + i)
+        const url = host + getPageByNum(i)
+        console.log(url)
+        await processUwantsPage(url)
     }
 
-    const getMp3ByDetailPage = async (titleInfor) => {
-        const {id, title, url} = titleInfor
-        const detailUrl = host + url
-        const html = await getHtml(detailUrl)
-
-        return getDetail(html)
-    }
-
-
-    const kmdTitleList = await getKmdTitleList()
-
-    for(let i =0 ; i< kmdTitleList.length; i++){
-        const titleInfor = kmdTitleList[i]
-        
-        const detailUrl = await getMp3ByDetailPage(titleInfor)
-
-        console.log('i: ', i)
-
-        if (!detailUrl || !detailUrl.length) { continue }
-        for(let j =0 ; j< detailUrl.length; j++){
-            const url = detailUrl[j]
-            console.log('   url: ', url)
-        }
-    }
-
-})()
+    console.log(' -=-=-=-=-=-=-=-= done -=-=-=-=-=-=-=-=')
+    process.exit()
+}
